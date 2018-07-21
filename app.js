@@ -24,8 +24,10 @@ app.use(bodyParser.urlencoded({
 app.use(bodyParser.json());
 
 app.use(function (req, res, next) {
+
+    console.log('router ==>' + req.url)
     var token = req.headers['authorization'];
-    // console.log(token)
+    console.log('token ==>' + token)
     if (token) {
         jwt.verify(token, "cnloop", function (err, decoded) {
             if (err) {
@@ -37,7 +39,8 @@ app.use(function (req, res, next) {
                     data: ''
                 })
             } else {
-                console.log(decoded);
+                console.log('===' + decoded);
+                console.log('222')
                 req.isVerified = true;
                 req.userInfo = decoded;
                 return next();
@@ -55,7 +58,7 @@ app.use((err, req, res, next) => {
     console.log(err);
     return res.send({
         code: 400,
-        msg: err,
+        msg: '网络不佳，稍后再试...',
         data: ''
     })
 })

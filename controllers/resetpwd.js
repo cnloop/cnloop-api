@@ -46,11 +46,7 @@ var methodSets = {
         return String.fromCodePoint(codePoint);
     },
     // 为新注册用户签发token
-    signToken(email, password) {
-        var userInfo = {
-            email,
-            password
-        };
+    signToken(userInfo) {
         var deadline = {
             expiresIn: '1d'
         };
@@ -84,14 +80,14 @@ var methodSets = {
                 }
             });
 
-            var html = template(path.join(process.cwd(), './template/register_email.html'), {
+            var html = template(path.join(process.cwd(), './template/resetpwd_email.html'), {
                 url
             })
             let mailOptions = {
                 // from: '"CNLOOP" <cn-loop@qq.com>', // sender address
                 from: '"CNLOOP" <qiuxue0714@163.com>',
                 to: email, // list of receivers
-                subject: 'complete the registration', // Subject line
+                subject: 'complete the password reset', // Subject line
                 // text:'123'
                 // html: `Please complete the registration ——> <a href="${url}">Go</a>`
 
@@ -119,30 +115,10 @@ var methodSets = {
                 }
             });
         })
-    },
-    signUser(id, email, username) {
-        var userInfo = {
-            id,
-            email,
-            username
-        };
-        var deadline = {
-            expiresIn: '180d'
-        };
-        return new Promise((res, rej) => {
-            jwt.sign(userInfo, "cnloop", deadline, (err, token) => {
-                if (err) {
-                    rej(err)
-                } else {
-                    res(token)
-                }
-            });
-        })
-
-    },
+    }
 }
 
-module.exports.createUser = async (req, res, next) => {
+module.exports.sendEmail = async (req, res, next) => {
     var {
         email,
         password,
@@ -178,24 +154,32 @@ module.exports.createUser = async (req, res, next) => {
             });
         }
 
-        var affectRows = await db.query({
-            sqlStr: 'select email from users where email = ?',
+        var searchResult = await db.query({
+            sqlStr: 'select * from users where email = ? limit 1',
             escapeArr: [regExp.trim(email)]
         })
-        if (affectRows.length > 0) {
+
+        console.dir('searchResult ==>' + searchResult)
+
+        if (!searchResult.length) {
             return res.send({
                 code: 400,
-                msg: '邮箱已经注册',
+                msg: '请填入正确邮箱',
                 data: {}
             });
         }
 
+        console.dir(searchResult[0])
 
-        var token = await methodSets.signToken(regExp.trim(email), regExp.trim(password));
+        var token = await methodSets.signToken({
+            id: searchResult[0].id,
+            email: email,
+            password: password
+        });
 
-        var url_token = `http://127.0.0.1:8000/verify?register_token=${token}`
+        var url_token = `http://127.0.0.1:8000/verify?resetPwd_token=${token}`
 
-        var info = await methodSets.sendEmail(regExp.trim(email), url_token);
+        var info = await methodSets.sendEmail(searchResult[0].email, url_token);
 
         if (!info.messageId) {
             return res.send({
@@ -215,54 +199,38 @@ module.exports.createUser = async (req, res, next) => {
     }
 }
 
-module.exports.insertUser = async (req, res, next) => {
+module.exports.updatePwd = async (req, res, next) => {
     var {
-        register_token
+        resetPwd_token
     } = req.body;
     try {
-        var userinfo = await methodSets.jwt_email(register_token);
+        var userinfo = await methodSets.jwt_email(resetPwd_token);
 
-        var userArr = await db.query({
-            sqlStr: 'select * from users where email = ? limit 1',
-            escapeArr: [userinfo.email]
-        })
-
-        console.dir(userArr)
-        if (userArr.length) {
-            return res.send({
-                code: 400,
-                msg: '您已经注册过此邮箱',
-                data: {}
-            })
-        }
+        console.log(userinfo)
 
         var time = new Date().getTime()
 
-        var username = methodSets.randomCharacter() + time;
-
-
-
-        var sqlStr = 'insert into users (username, password, email, createdAt, last_login) values (?,?,?,?,?)';
-
-        var escapeArr = [username, md5(userinfo.password), userinfo.email, time, time];
+        var userArr = await db.query({
+            sqlStr: 'update users set password = ?, updatedAt = ? where id = ? and email = ?',
+            escapeArr: [md5(userinfo.password), time, userinfo.id, userinfo.email]
+        })
 
         var result = await db.query({
-            sqlStr,
-            escapeArr
-        });
+            sqlStr: 'select * from users where id = ? limit 1',
+            escapeArr: [userinfo.id]
+        })
 
+        console.dir(result)
 
-        var sign_token = await methodSets.signUser(result.insertId, userinfo.email, username)
+        result[0].password = ''
+
+        var sign_token = await methodSets.signToken(Object.assign({}, result[0]))
 
         return res.send({
             code: 200,
             msg: 'ok',
             data: {
-                user: {
-                    id: result.insertId,
-                    email: userinfo.email,
-                    username: username
-                },
+                user: result[0],
                 token: sign_token
             }
         })

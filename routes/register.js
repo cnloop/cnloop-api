@@ -6,4 +6,7 @@ var register = require('../controllers/register')
 
 router.post('/', register.createUser)
 
+router.post('/email', register.insertUser)
+
+
 module.exports = router

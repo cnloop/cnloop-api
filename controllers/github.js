@@ -12,8 +12,27 @@ var md5 = require("blueimp-md5");
 
 /// 不存在，向数据库插入一条新的用户信息
 
+
+var methodSets = {
+    signUser(userInfo) {
+        var deadline = {
+            expiresIn: '180d'
+        };
+        return new Promise((res, rej) => {
+            jwt.sign(userInfo, "cnloop", deadline, (err, token) => {
+                if (err) {
+                    rej(err)
+                } else {
+                    res(token)
+                }
+            });
+        })
+    }
+}
+
+
 module.exports.verify = async (req, res, next) => {
-    if (!req.query) return res.redirect('http://127.0.0.1:8080')
+    if (!req.query) return res.redirect('http://127.0.0.1:8000')
     try {
         var getCode = await axios({
             method: "post",
@@ -27,66 +46,62 @@ module.exports.verify = async (req, res, next) => {
                 code: req.query.code
             }
         })
-        if (!getCode.data.access_token) return res.redirect('http://127.0.0.1:8080')
+        if (!getCode.data.access_token) return res.redirect('http://127.0.0.1:8000')
         var getUserInfo = await axios.get('https://api.github.com/user', {
             params: {
                 access_token: getCode.data.access_token
             }
         })
 
-        if (!getUserInfo.data) return res.redirect('http://127.0.0.1:8080/404')
-        console.log(getUserInfo.data);
-        var id;
-        var username = getUserInfo.data.login;
-        var password = md5(new Date().getTime());
-        var avatar = getUserInfo.data.avatar_url;
-        var email = getUserInfo.data.email;
-        var sqlStr = `select * from users where username = '${username}' limit 1`;
-        try {
-            var result = await db.query(sqlStr);
-            console.log(result)
-            if (!result.length) {
-                var insertStr = `insert into users (username, github_name, password, avatar, email, createdAt) values ('${username}','${username}','${password}','${avatar}','${email}','${new Date().getTime()}')`;
-                var insertResult = await db.query(insertStr);
-                id = insertResult.insertId;
-            }
-            jwt.sign({
-                id: id,
-                username: username,
-                password: password
-            }, "cnloop", {
-                expiresIn: '180d'
-            }, function (
-                err,
-                token
-            ) {
-                if (!err) {
-                    if (!result.length) {
-                        var data = {
-                            token: token,
-                            user: {
-                                id: id,
-                                username: username,
-                                avatar: avatar,
-                                email: email
-                            }
-                        }
-                    } else {
-                        var data = {
-                            token: token,
-                            user: result[0]
-                        }
-                    }
+        if (!getUserInfo.data) return res.redirect('http://127.0.0.1:8000/github');
 
-                    return res.redirect(`http://127.0.0.1:8080/login?data=${JSON.stringify(data)}`)
-                }
-                return next(err)
-            });
-        } catch (err) {
-            return next(err)
+        var userInfo = {
+            username: getUserInfo.data.login,
+            avatar: getUserInfo.data.avatar_url,
+            github_email: getUserInfo.data.email
         }
+
+        var result = await db.query({
+            sqlStr: 'select * from users where github_email = ? limit 1',
+            escapeArr: [userInfo.github_email]
+        });
+        console.log('result ==>' + result)
+        if (result.length) {
+
+            var token = await methodSets.signUser(Object.assign({}, result[0]))
+
+            var github_data = {
+                user: result[0],
+                token: token
+            }
+
+            return res.redirect(`http://127.0.0.1:8000/github?data=${JSON.stringify(github_data)}`)
+
+        } else {
+
+            var time = new Date().getTime();
+
+            var insert_result = await db.query({
+                sqlStr: 'insert into users (username, avatar, github_email, createdAt, last_login) values (?,?,?,?,?)',
+                escapeArr: [userInfo.username, userInfo.avatar, userInfo.github_email, time, time]
+            })
+
+            userInfo.createdAt = time;
+
+            userInfo.last_login = time;
+
+            var token = await methodSets.signUser(userInfo)
+
+            var github_data = {
+                user: userInfo,
+                token: token
+            }
+
+            return res.redirect(`http://127.0.0.1:8000/github?data=${JSON.stringify(github_data)}`)
+        }
+
     } catch (err) {
         console.log(err)
-        return res.redirect('http://127.0.0.1:8080/404')
+        return res.redirect('http://127.0.0.1:8000/github')
     }
 }

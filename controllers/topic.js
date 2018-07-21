@@ -40,3 +40,11 @@ module.exports.createTopic = async (req, res, next) => {
     }
 
 }
+
+module.exports.getTopicList = async (req, res, next) => {
+
+    var {
+        pageIndex = 0, limit = 22
+    } = req.query;
+
+}

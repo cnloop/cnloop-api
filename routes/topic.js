@@ -8,4 +8,11 @@ var topic = require('../controllers/topic')
 
 router.post('/', check.isLogin, topic.createTopic)
 
+
+router.get('/list',  topic.getTopicList)
+
+// router.get('/detail',  topic.getTopicList)
+
+
+
 module.exports = router
