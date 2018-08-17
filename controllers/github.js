@@ -86,9 +86,13 @@ module.exports.verify = async (req, res, next) => {
                 escapeArr: [userInfo.username, userInfo.avatar, userInfo.github_email, time, time]
             })
 
+
+            userInfo.id = insert_result.insertId;
+
             userInfo.createdAt = time;
 
             userInfo.last_login = time;
+
 
             var token = await methodSets.signUser(userInfo)
 

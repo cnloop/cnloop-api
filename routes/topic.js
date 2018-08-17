@@ -8,10 +8,15 @@ var topic = require('../controllers/topic')
 
 router.post('/', check.isLogin, topic.createTopic)
 
+// router.get('/list', topic.getTopicList)
 
-router.get('/list',  topic.getTopicList)
+router.get('/:id', topic.getTopicById)
 
-// router.get('/detail',  topic.getTopicList)
+
+router.get('/show/overview', topic.getTopicsByDefault)
+
+
+
 
 
 

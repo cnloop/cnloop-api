@@ -223,7 +223,7 @@ module.exports.insertUser = async (req, res, next) => {
         var userinfo = await methodSets.jwt_email(register_token);
 
         var userArr = await db.query({
-            sqlStr: 'select * from users where email = ? limit 1',
+            sqlStr: 'select * from users where email = ? and deletedAt is null limit 1',
             escapeArr: [userinfo.email]
         })
 
@@ -237,6 +237,7 @@ module.exports.insertUser = async (req, res, next) => {
         }
 
         var time = new Date().getTime()
+
 
         var username = methodSets.randomCharacter() + time;
 

@@ -155,7 +155,7 @@ module.exports.sendEmail = async (req, res, next) => {
         }
 
         var searchResult = await db.query({
-            sqlStr: 'select * from users where email = ? limit 1',
+            sqlStr: 'select * from users where email = ? and deletedAt is null limit 1',
             escapeArr: [regExp.trim(email)]
         })
 
@@ -211,12 +211,12 @@ module.exports.updatePwd = async (req, res, next) => {
         var time = new Date().getTime()
 
         var userArr = await db.query({
-            sqlStr: 'update users set password = ?, updatedAt = ? where id = ? and email = ?',
+            sqlStr: 'update users set password = ?, updatedAt = ? where id = ? and email = ? and deletedAt is null',
             escapeArr: [md5(userinfo.password), time, userinfo.id, userinfo.email]
         })
 
         var result = await db.query({
-            sqlStr: 'select * from users where id = ? limit 1',
+            sqlStr: 'select * from users where id = ? and deletedAt is null limit 1',
             escapeArr: [userinfo.id]
         })
 

@@ -29,7 +29,7 @@ module.exports.createToken = async (req, res, next) => {
     } = req.body;
     console.dir(req.body)
     try {
-        var sqlStr = `select * from users where email = ? and password = ? limit 1`;
+        var sqlStr = `select * from users where email = ? and password = ? and deletedAt is null limit 1`;
         var escapeArr = [email, md5(password)]
         var result = await db.query({
             sqlStr,
