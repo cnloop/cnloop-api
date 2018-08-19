@@ -1,6 +1,8 @@
 var db = require('../models')
 var jwt = require("jsonwebtoken");
 var md5 = require("blueimp-md5");
+var moment = require('moment');
+
 
 
 
@@ -20,6 +22,11 @@ var methodSets = {
         })
 
     },
+    convertYMD(oneDate) {
+        var y = new Date(oneDate).getFullYear();
+        var m = new Date(oneDate).getMonth() + 1;
+        var d = new Date(oneDate).getDate();
+    }
 }
 
 module.exports.createToken = async (req, res, next) => {
@@ -27,7 +34,6 @@ module.exports.createToken = async (req, res, next) => {
         email,
         password
     } = req.body;
-    console.dir(req.body)
     try {
         var sqlStr = `select * from users where email = ? and password = ? and deletedAt is null limit 1`;
         var escapeArr = [email, md5(password)]
@@ -39,7 +45,7 @@ module.exports.createToken = async (req, res, next) => {
             return res.send({
                 code: 400,
                 msg: '账号或密码错误...',
-                data: {}
+                data: ""
             })
         }
         result[0].password = '';
@@ -53,7 +59,34 @@ module.exports.createToken = async (req, res, next) => {
             }
         })
     } catch (err) {
-        next(err)
+        return next(err)
     }
 
+}
+
+module.exports.markLoginStatus = async (req, res, next) => {
+    var time = new Date().getTime()
+    try {
+        var sqlStr = "select * from users_status where FROM_UNIXTIME(SUBSTRING(createdAt,1,10),'%Y%m%d') = ?  and deletedAt is null and user_id = ? order by createdAt desc limit 1"
+        var escapeArr = [moment(time).format('YYYYMMDD'), req.userInfo.id]
+        var result = await db.query({
+            sqlStr,
+            escapeArr
+        });
+        if (!result.length) {
+            var inser_result = await db.query({
+                sqlStr: "insert into users_status (user_id, createdAt) values (?,?)",
+                escapeArr: [req.userInfo.id, time]
+            });
+            return res.send(inser_result)
+        } else {
+            var update_result = await db.query({
+                sqlStr: "update users_status set updatedAt = ?  where id = ?",
+                escapeArr: [time, result[0].id]
+            });
+            return res.send(update_result)
+        }
+    } catch (err) {
+        return next(err)
+    }
 }

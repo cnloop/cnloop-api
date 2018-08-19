@@ -12,12 +12,6 @@ router.post('/', check.isLogin, topic.createTopic)
 
 router.get('/:id', topic.getTopicById)
 
-
 router.get('/show/overview', topic.getTopicsByDefault)
-
-
-
-
-
 
 module.exports = router

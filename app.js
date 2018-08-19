@@ -24,23 +24,16 @@ app.use(bodyParser.urlencoded({
 app.use(bodyParser.json());
 
 app.use(function (req, res, next) {
-
-    console.log('router ==>' + req.url)
     var token = req.headers['authorization'];
-    console.log('token ==>' + token)
     if (token) {
         jwt.verify(token, "cnloop", function (err, decoded) {
             if (err) {
-                console.log("--");
-                console.log(err);
                 return res.send({
                     code: 403,
                     msg: 'err',
                     data: ''
                 })
             } else {
-                console.log('===' + decoded);
-                console.log('222')
                 req.isVerified = true;
                 req.userInfo = decoded;
                 return next();
@@ -55,7 +48,7 @@ app.use(function (req, res, next) {
 mount(app, path.join(__dirname, 'routes'), true);
 
 app.use((err, req, res, next) => {
-    console.log(err);
+    console.dir(err);
     return res.send({
         code: 400,
         msg: '网络不佳，稍后再试...',
