@@ -34,7 +34,6 @@ app.use(function (req, res, next) {
                     data: ''
                 })
             } else {
-                req.isVerified = true;
                 req.userInfo = decoded;
                 return next();
             }

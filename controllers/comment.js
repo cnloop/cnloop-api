@@ -37,7 +37,6 @@ module.exports.createComment = async (req, res, next) => {
             sqlStr,
             escapeArr
         });
-        console.dir(result)
         return res.send({
             code: 200,
             msg: "ok",
@@ -71,7 +70,6 @@ module.exports.createCommentSon = async (req, res, next) => {
             sqlStr,
             escapeArr
         });
-        console.dir(result)
         return res.send({
             code: 200,
             msg: "ok",
@@ -80,6 +78,91 @@ module.exports.createCommentSon = async (req, res, next) => {
     } catch (err) {
         return next(err)
     }
+}
+
+module.exports.insertCommentLike = async (req, res, next) => {
+
+    var {
+        commentId
+    } = req.params
+
+    if (!commentId) return res.send({
+        code: 400,
+        msg: "value can not be empty",
+        data: ""
+    })
+
+    var time = new Date().getTime()
+    try {
+        var result = await db.query({
+            sqlStr: "select * from comments_like where user_id = ? and comment_id = ? and deletedAt is null",
+            escapeArr: [req.userInfo.id, commentId]
+        })
+        if (!result.length > 0) {
+            var sqlStr = "insert into comments_like (comment_id, user_id, createdAt) values (?,?,?)"
+            var escapeArr = [commentId, req.userInfo.id, time]
+            await db.query({
+                sqlStr,
+                escapeArr
+            })
+        } else {
+            await db.query({
+                sqlStr: "update comments_like set deletedAt = ? where id = ? ",
+                escapeArr: [time, result[0].id]
+            })
+        }
+        return res.send({
+            code: 200,
+            msg: "ok",
+            data: ""
+        })
+    } catch (err) {
+        return next(err)
+    }
+
+}
+
+
+module.exports.insertCommentSonLike = async (req, res, next) => {
+
+    var {
+        commentSonId
+    } = req.params
+
+    if (!commentSonId) return res.send({
+        code: 400,
+        msg: "value can not be empty",
+        data: ""
+    })
+
+    var time = new Date().getTime()
+    try {
+        var result = await db.query({
+            sqlStr: "select * from comments_son_like where user_id = ? and comment_son_id = ? and deletedAt is null",
+            escapeArr: [req.userInfo.id, commentSonId]
+        })
+        if (!result.length > 0) {
+            var sqlStr = "insert into comments_son_like (comment_son_id, user_id, createdAt) values (?,?,?)"
+            var escapeArr = [commentSonId, req.userInfo.id, time]
+            await db.query({
+                sqlStr,
+                escapeArr
+            })
+        } else {
+            await db.query({
+                sqlStr: "update comments_son_like set deletedAt = ? where id = ? ",
+                escapeArr: [time, result[0].id]
+            })
+        }
+        return res.send({
+            code: 200,
+            msg: "ok",
+            data: ""
+        })
+    } catch (err) {
+        return next(err)
+    }
+
 }
 
 module.exports.getCommentList = async (req, res, next) => {
@@ -94,18 +177,28 @@ module.exports.getCommentList = async (req, res, next) => {
         data: ""
     })
 
-    var sqlStr = `SELECT comments.*, users.avatar, users.username, 
-    GROUP_CONCAT(CONCAT(new_comments_son.avatar,',',new_comments_son.username,',',new_comments_son.id,',',new_comments_son.content,',',new_comments_son.user_id,',',new_comments_son.createdAt),'|') 
-    as comment_son_info 
-        FROM comments 
-        INNER JOIN users on comments.user_id = users.id
-        LEFT JOIN (SELECT comments_son.*, users.avatar, users.username FROM comments_son INNER JOIN users on comments_son.user_id = users.id) as new_comments_son
-        on comments.id = new_comments_son.parent_comment_id 
-        WHERE comments.topic_id = ?
-        AND comments.deletedAt is null 
-        AND users.deletedAt is NULL
-        AND new_comments_son.deletedAt is null 
-        GROUP BY comments.id`;
+    var sqlStr = `
+    SELECT comments.*, new_users.avatar, new_users.username, new_comments_like.parent_comment_sets, result_comment_son.comment_son_info FROM comments
+
+    INNER JOIN (SELECT * FROM users WHERE users.deletedAt is NULL) as new_users on new_users.id = comments.user_id
+
+    LEFT JOIN (SELECT comments_like.comment_id, GROUP_CONCAT(comments_like.user_id) as parent_comment_sets FROM comments_like WHERE comments_like.deletedAt is NULL GROUP BY comments_like.comment_id) as new_comments_like on comments.id = new_comments_like.comment_id
+
+    LEFT JOIN (
+    SELECT comments_son.parent_comment_id, GROUP_CONCAT(CONCAT(IFNULL(new_users.avatar,'%empty%') , '&&', IFNULL(new_users.username,'%empty%'), '&&', IFNULL(comments_son.id,'%empty%'), '&&', IFNULL(comments_son.content,'%empty%'), '&&', IFNULL(comments_son.user_id,'%empty%'), '&&', IFNULL(comments_son.createdAt,'%empty%'), '&&', IFNULL(new_comments_son_like.son_like_sets,'%empty%')) SEPARATOR '|||') as comment_son_info FROM comments_son 
+
+    INNER JOIN (SELECT * FROM users WHERE users.deletedAt is NULL) as new_users on new_users.id = comments_son.user_id
+
+
+    LEFT JOIN (SELECT comments_son_like.comment_son_id, GROUP_CONCAT(comments_son_like.user_id) as son_like_sets FROM comments_son_like WHERE comments_son_like.deletedAt is null GROUP BY comments_son_like.comment_son_id) as new_comments_son_like on new_comments_son_like.comment_son_id = comments_son.id
+
+    WHERE comments_son.deletedAt is NULL GROUP BY comments_son.parent_comment_id
+    ) as result_comment_son on comments.id = result_comment_son.parent_comment_id
+
+
+
+    WHERE comments.deletedAt is NULL AND  comments.topic_id = ? ORDER BY comments.createdAt
+    `;
     var escapeArr = [topicId]
     try {
         var result = await db.query({
@@ -119,5 +212,93 @@ module.exports.getCommentList = async (req, res, next) => {
         })
     } catch (err) {
         return next(err)
+    }
+}
+
+module.exports.getCommentByDefaultUserId = async (req, res, next) => {
+    var sqlStr = `
+    (select new_comments.id, left(new_comments.content, 100) as content, new_comments.createdAt, new_users.avatar, new_users.username, new_comments.topic_id, new_topics.title as targetContent, 'parent' as targetCategory from (select * from comments where deletedAt is null and user_id = ?) as new_comments inner join (select * from users where deletedAt is null) as new_users on new_users.id = new_comments.user_id
+    inner join (select * from topics where deletedAt is null) as new_topics on new_topics.id = new_comments.topic_id) union (select
+
+    new_comments_son.parent_comment_id as id, left(new_comments_son.content,100) as content, new_comments_son.createdAt, new_users.avatar, new_users.username, new_comments.topic_id, left(new_comments.content,100) as targetContent, 'son' as  targetCategory
+
+    from (select * from comments_son where deletedAt is null and user_id = ?) as new_comments_son
+
+    inner join (select * from users where deletedAt is null) as new_users on new_users.id = new_comments_son.user_id
+
+    inner join (select * from comments where deletedAt is null and user_id = ?) as new_comments on new_comments.id = new_comments_son.parent_comment_id)
+    `
+
+    try {
+        var result = await db.query({
+            sqlStr: sqlStr,
+            escapeArr: [req.userInfo.id, req.userInfo.id, req.userInfo.id]
+
+        })
+        if (result.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: result
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "err",
+                data: ""
+            })
+        }
+
+    } catch (err) {
+        next(err)
+    }
+}
+
+module.exports.getCommentByUserId = async (req, res, next) => {
+    var {
+        user_id
+    } = req.params
+
+    if (!user_id) {
+        return res.send({
+            code: 400,
+            msg: "value can not be empty",
+            data: ""
+        })
+    }
+    var sqlStr = `
+    (select new_comments.id, left(new_comments.content, 100) as content, new_comments.createdAt, new_users.avatar, new_users.username, new_comments.topic_id, new_topics.title as targetContent, 'parent' as targetCategory from (select * from comments where deletedAt is null and user_id = ?) as new_comments inner join (select * from users where deletedAt is null) as new_users on new_users.id = new_comments.user_id
+    inner join (select * from topics where deletedAt is null) as new_topics on new_topics.id = new_comments.topic_id) union (select
+
+    new_comments_son.parent_comment_id as id, left(new_comments_son.content,100) as content, new_comments_son.createdAt, new_users.avatar, new_users.username, new_comments.topic_id, left(new_comments.content,100) as targetContent, 'son' as  targetCategory
+
+    from (select * from comments_son where deletedAt is null and user_id = ?) as new_comments_son
+
+    inner join (select * from users where deletedAt is null) as new_users on new_users.id = new_comments_son.user_id
+
+    inner join (select * from comments where deletedAt is null and user_id = ?) as new_comments on new_comments.id = new_comments_son.parent_comment_id)
+    `
+
+    try {
+        var result = await db.query({
+            sqlStr: sqlStr,
+            escapeArr: [user_id, user_id, user_id]
+        })
+        if (result.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: result
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "err",
+                data: ""
+            })
+        }
+
+    } catch (err) {
+        next(err)
     }
 }
