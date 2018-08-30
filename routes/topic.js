@@ -14,6 +14,10 @@ router.get('/getTopicByDefaultUserId', check.isLogin, topic.getTopicByDefaultUse
 
 router.get('/getTopicByUserId/:user_id', topic.getTopicByUserId)
 
+router.get("/getCategoryWeekCount", topic.getCategoryWeekCount)
+
+router.get("/getCategoryRecentCount", topic.getCategoryRecentCount)
+
 
 router.get('/:id', topic.getTopicById)
 

@@ -123,7 +123,92 @@ module.exports.getTargetFollowersList = async (req, res, next) => {
             sqlStr: "select users_follow.*, new_users.avatar, new_users.username, new_users.nickname from users_follow inner join (select * from users where deletedAt is null) as new_users on new_users.id = users_follow.user_id where users_follow.deletedAt is null and users_follow.following_user_id = ?",
             escapeArr: [following_user_id]
         })
-   
+
+        if (result.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: result
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "query result is null",
+                data: ""
+            })
+        }
+    } catch (err) {
+        return next(err)
+    }
+}
+
+module.exports.getTargetFollowersListByDefault = async (req, res, next) => {
+    try {
+        var result = await db.query({
+            sqlStr: "select users_follow.*, new_users.avatar, new_users.username, new_users.nickname from users_follow inner join (select * from users where deletedAt is null) as new_users on new_users.id = users_follow.user_id where users_follow.deletedAt is null and users_follow.following_user_id = ?",
+            escapeArr: [req.userInfo.id]
+        })
+
+        if (result.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: result
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "query result is null",
+                data: ""
+            })
+        }
+    } catch (err) {
+        return next(err)
+    }
+}
+
+module.exports.getTargetfollowingList = async (req, res, next) => {
+    var {
+        user_id
+    } = req.params
+
+
+    if (!user_id) return res.send({
+        code: 400,
+        msg: "user_id is null",
+        data: ""
+    })
+    try {
+        var result = await db.query({
+            sqlStr: "select users_follow.*, new_users.avatar, new_users.username, new_users.nickname  from users_follow inner join (select * from users where deletedAt is null) as new_users on new_users.id = users_follow.following_user_id where users_follow.deletedAt is null and users_follow.user_id = ?",
+            escapeArr: [user_id]
+        })
+
+        if (result.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: result
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "query result is null",
+                data: ""
+            })
+        }
+    } catch (err) {
+        return next(err)
+    }
+}
+
+module.exports.getTargetfollowingListByDefault = async (req, res, next) => {
+    try {
+        var result = await db.query({
+            sqlStr: "select users_follow.*, new_users.avatar, new_users.username, new_users.nickname  from users_follow inner join (select * from users where deletedAt is null) as new_users on new_users.id = users_follow.following_user_id where users_follow.deletedAt is null and users_follow.user_id = ?",
+            escapeArr: [req.userInfo.id]
+        })
+
         if (result.length > 0) {
             return res.send({
                 code: 200,

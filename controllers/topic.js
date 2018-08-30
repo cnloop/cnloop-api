@@ -494,3 +494,52 @@ module.exports.getTopicByUserId = async (req, res, next) => {
         next(err)
     }
 }
+
+module.exports.getCategoryWeekCount = async (req, res, next) => {
+    try {
+        var result = await db.query({
+            sqlStr: "SELECT category, COUNT(*) as WeekCount  FROM topics WHERE deletedAt is NULL AND YEARWEEK(FROM_UNIXTIME(SUBSTRING(createdAt,1,10),'%Y-%m-%d %h:%m:%s')) = YEARWEEK(now()) GROUP BY category",
+            escapeArr: []
+        })
+        console.dir(result)
+        if (result.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: result
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "query category WeekCount is null",
+                data: ""
+            })
+        }
+    } catch (err) {
+        return next(err)
+    }
+}
+
+module.exports.getCategoryRecentCount = async (req, res, next) => {
+    try {
+        var result = await db.query({
+            sqlStr: "SELECT category, COUNT(*) as recentCount FROM topics WHERE deletedAt is NULL AND DATE_SUB(CURDATE(), INTERVAL 3 DAY) <= FROM_UNIXTIME(SUBSTRING(createdAt,1,10),'%Y-%m-%d') GROUP BY category",
+            escapeArr: []
+        })
+        if (result.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: result
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "query category RecentCount is null",
+                data: ""
+            })
+        }
+    } catch (err) {
+        return next(err)
+    }
+}

@@ -50,7 +50,7 @@ app.use((err, req, res, next) => {
     console.dir(err);
     return res.send({
         code: 400,
-        msg: '网络不佳，稍后再试...',
+        msg: '中间层转 err....',
         data: ''
     })
 })

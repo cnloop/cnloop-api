@@ -217,7 +217,8 @@ module.exports.getCommentList = async (req, res, next) => {
 
 module.exports.getCommentByDefaultUserId = async (req, res, next) => {
     var sqlStr = `
-    (select new_comments.id, left(new_comments.content, 100) as content, new_comments.createdAt, new_users.avatar, new_users.username, new_comments.topic_id, new_topics.title as targetContent, 'parent' as targetCategory from (select * from comments where deletedAt is null and user_id = ?) as new_comments inner join (select * from users where deletedAt is null) as new_users on new_users.id = new_comments.user_id
+    select  BigResult.* from
+    ((select new_comments.id, left(new_comments.content, 100) as content, new_comments.createdAt, new_users.avatar, new_users.username, new_comments.topic_id, new_topics.title as targetContent, 'parent' as targetCategory from (select * from comments where deletedAt is null and user_id = ?) as new_comments inner join (select * from users where deletedAt is null) as new_users on new_users.id = new_comments.user_id
     inner join (select * from topics where deletedAt is null) as new_topics on new_topics.id = new_comments.topic_id) union (select
 
     new_comments_son.parent_comment_id as id, left(new_comments_son.content,100) as content, new_comments_son.createdAt, new_users.avatar, new_users.username, new_comments.topic_id, left(new_comments.content,100) as targetContent, 'son' as  targetCategory
@@ -226,7 +227,7 @@ module.exports.getCommentByDefaultUserId = async (req, res, next) => {
 
     inner join (select * from users where deletedAt is null) as new_users on new_users.id = new_comments_son.user_id
 
-    inner join (select * from comments where deletedAt is null and user_id = ?) as new_comments on new_comments.id = new_comments_son.parent_comment_id)
+    inner join (select * from comments where deletedAt is null and user_id = ?) as new_comments on new_comments.id = new_comments_son.parent_comment_id)) as BigResult order by BigResult.createdAt desc 
     `
 
     try {
