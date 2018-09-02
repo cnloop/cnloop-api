@@ -1,5 +1,16 @@
 var db = require('../models')
 var xss = require('xss');
+var path = require("path")
+var fs = require("fs")
+var formidable = require("formidable")
+var qiniu = require('node-qiniu')
+var config = require("../config")
+qiniu.config({
+    access_key: config.qiniu.access_key,
+    secret_key: config.qiniu.secret_key
+})
+
+var imagesBucket = qiniu.bucket(config.qiniu.bucket);
 
 var methodSets = {
     trim(str) {
@@ -32,7 +43,7 @@ module.exports.createTopic = async (req, res, next) => {
             data: ""
         })
     }
-
+    title = xss(title)
     content = xss(content)
 
     var time = new Date().getTime()
@@ -54,10 +65,72 @@ module.exports.createTopic = async (req, res, next) => {
     }
 }
 
+function getFile(req) {
+    return new Promise((res, rej) => {
+        var form = new formidable.IncomingForm();
+        form.uploadDir = path.join(process.cwd(), "uploads")
+        form.maxFileSize = 2 * 1024 * 1024;
+        form.parse(req, function (err, fields, files) {
+            if (err) {
+                return rej(err)
+            }
+            res({
+                fields,
+                files
+            })
+        })
+    })
+}
+
+function fileReName(filePath, newPath) {
+    return new Promise((res, rej) => {
+        fs.rename(filePath, newPath, function (err) {
+            if (err) return rej(err)
+            res()
+        })
+    })
+}
+
+function uploadQiNiu(fileName, newPath) {
+    new Promise((res, rej) => {
+        imagesBucket.putFile(fileName, newPath, function (err, reply) {
+            if (err) return rej(err)
+            res(reply)
+        })
+    })
+}
+
+module.exports.uploadImage = async (req, res, next) => {
+    try {
+        var resultGetFile = await getFile(req)
+        if (!resultGetFile.files.image.path) {
+            return res.send({
+                code: 400,
+                msg: "server not get images...",
+                data: ""
+            })
+        }
+        var fileName = `${new Date().getTime()}.png`
+        var newPath = path.join(process.cwd(), 'uploads', fileName)
+        var resultFileReName = await fileReName(resultGetFile.files.image.path, newPath)
+        var resultUploadQiNiu = await uploadQiNiu(fileName, newPath)
+        fs.unlinkSync(newPath)
+        return res.send({
+            code: 200,
+            msg: "ok",
+            data: `${config.qiniu.domain}/${fileName}`
+        })
+    } catch (err) {
+        console.dir(err)
+        return next(err)
+    }
+
+}
+
 module.exports.getTopicList = async (req, res, next) => {
     var {
         category,
-        newOrhot
+        newOrhot,
     } = req.query
 
     if (!methodSets.isNull(category, newOrhot)) return res.send({
@@ -86,9 +159,22 @@ module.exports.getTopicList = async (req, res, next) => {
         newOrhot = "result_count"
     }
 
+    var {
+        pageIndex
+    } = req.query
+
+    if (pageIndex < 1 || !pageIndex) pageIndex = 1
+
+    // 规定每页显示 20 条
+
+    var limit = 20;
+
+    var start = (pageIndex - 1) * limit
+
+
     var sqlStr = `
     -- 最后回复日期或者发布日期，回复的总条数，回复者user_info信息
-    select topics.*, new_users.avatar, new_users.username, GREATEST(topics.createdAt, ifnull(result_comments.result_time,0)) as result_time, result_comments.result_count, concat(concat(ifnull(new_users.avatar,'%empty%'),'&&', new_users.username),'|||',ifnull(result_comments.result_user_info,'%empty%&&%empty%')) as result_user_info  from topics
+    select topics.id, topics.title, topics.category, topics.user_id, topics.browsed, topics.createdAt, new_users.avatar, new_users.username, GREATEST(topics.createdAt, ifnull(result_comments.result_time,0)) as result_time, result_comments.result_count, concat(concat(ifnull(new_users.avatar,'%empty%'),'&&', new_users.username),'|||',ifnull(result_comments.result_user_info,'%empty%&&%empty%')) as result_user_info  from topics
 
     inner join (
         -- users 表
@@ -122,24 +208,76 @@ module.exports.getTopicList = async (req, res, next) => {
 
     ) as result_comments on result_comments.topic_id = topics.id
 
-    where topics.deletedAt is null and topics.category = '${category}' ORDER BY ${newOrhot} DESC LIMIT ?
+    where topics.deletedAt is null and topics.category = '${category}' ORDER BY ${newOrhot} DESC LIMIT ${start}, ${limit}
     `;
 
+    var sqlCount = `
+        -- 最后回复日期或者发布日期，回复的总条数，回复者user_info信息
+        select count(*) as pageCount  from topics
+
+        inner join (
+            -- users 表
+            select * from users where users.deletedAt is null
+        ) as new_users on new_users.id = topics.user_id
+
+        left join (
+        -- sum(count(*)+ifnull(result_comments_son.s_count,0))
+        -- 1
+        select new_comments.topic_id, max(GREATEST(new_comments.createdAt,ifnull(result_comments_son.s_time,0))) as result_time, group_concat(concat(new_comments.c_user_info,'|||',ifnull(result_comments_son.s_r_user_info,'%empty%&&%empty%')) SEPARATOR '|||') as result_user_info, count(*)+ifnull(sum(result_comments_son.s_count),0) as result_count from 
+        -- comments.* | c_user_info
+        -- start
+        (select comments.*, concat(ifnull(c_users.avatar,'%empty%'),'&&',c_users.username) as c_user_info  from comments inner join (select * from users where users.deletedAt is null) as c_users on c_users.id = comments.user_id  where comments.deletedAt is null) as new_comments
+        -- end
+
+        -- 2
+        left join
+
+        -- parent_comment_id | s_count | s_time | s_r_user_info
+        -- start
+        (select new_comments_son.parent_comment_id, count(*) as s_count, max(new_comments_son.createdAt) as s_time, group_concat(new_comments_son.s_user_info SEPARATOR '|||') as s_r_user_info  from
+
+        (select comments_son.*, concat(ifnull(s_users.avatar,'%empty%'),'%%',s_users.username) as s_user_info from comments_son inner join (select * from users where users.deletedAt is null) as s_users on s_users.id = comments_son.user_id  where comments_son.deletedAt is null) as 
+        
+        new_comments_son group by new_comments_son.parent_comment_id) as result_comments_son
+        -- end
+
+        -- 3
+        on result_comments_son.parent_comment_id = new_comments.id  group by new_comments.topic_id
+
+
+        ) as result_comments on result_comments.topic_id = topics.id
+
+        where topics.deletedAt is null and topics.category = '${category}'
+        `
     try {
-        var escapeArr = [20]
-        var result = await db.query({
+        var resultTopics = await db.query({
             sqlStr,
-            escapeArr
+            escapeArr: [20]
         });
-        return res.send({
-            code: 200,
-            msg: "ok",
-            data: result
-        })
+        var resultCount = await db.query({
+            sqlStr: sqlCount,
+            escapeArr: []
+        });
+        if (resultTopics.length > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: {
+                    topics: resultTopics,
+                    pageCount: Math.ceil(resultCount[0].pageCount / limit)
+                }
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: "query topics result is null",
+                data: ""
+            })
+        }
+
     } catch (err) {
         return next(err)
     }
-
 }
 
 module.exports.getTopicById = async (req, res, next) => {
@@ -211,7 +349,7 @@ module.exports.getTopicsOverview = async (req, res, next) => {
 
         WHERE topics.deletedAt is NULL ORDER BY result_time DESC LIMIT ?`;
 
-        var escapeArr = [20]
+        var escapeArr = [10]
         var result = await db.query({
             sqlStr,
             escapeArr
@@ -229,12 +367,20 @@ module.exports.getTopicsOverview = async (req, res, next) => {
 
 module.exports.insertTopicLike = async (req, res, next) => {
     var {
-        topic_id
-    } = req.params
+        topic_id,
+        receiver_user_id
+    } = req.query
 
     if (!topic_id) return res.send({
         code: 400,
-        msg: "value can not be empty",
+        msg: "topic_id can not be empty",
+        data: ""
+    })
+
+
+    if (!receiver_user_id) return res.send({
+        code: 400,
+        msg: "receiver_user_id can not be empty",
         data: ""
     })
 
@@ -255,6 +401,20 @@ module.exports.insertTopicLike = async (req, res, next) => {
                 sqlStr,
                 escapeArr
             })
+
+            // 触发者 不等于 接收者 才执行下面的事件
+            if (receiver_user_id != req.userInfo.id) {
+
+                var resultTopic = await db.query({
+                    sqlStr: "select * from topics where deletedAt is null and id = ? limit 1",
+                    escapeArr: [topic_id]
+                })
+                await db.query({
+                    sqlStr: "insert into notices_like_topic (sender_user_id, sender_avatar, sender_username, receiver_user_id, type, target_id, content, topic_id, isRead, createdAt) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    escapeArr: [req.userInfo.id, req.userInfo.avatar, req.userInfo.username, receiver_user_id, "like_topic", topic_id, resultTopic[0].title, topic_id, 0, time]
+                })
+            }
+
         } else {
             await db.query({
                 sqlStr: "update topics_like set deletedAt = ? where id = ? ",
@@ -298,6 +458,22 @@ module.exports.insertTopicCollection = async (req, res, next) => {
                 sqlStr,
                 escapeArr
             })
+
+            var resultCollection = await db.query({
+                sqlStr: "select * from topics where deletedAt is null and id = ?",
+                escapeArr: [topic_id]
+            })
+
+            var receiver_user_id = resultCollection[0].user_id
+            var sender_user_id = req.userInfo.id
+            if (receiver_user_id != req.userInfo.id) {
+                await db.query({
+                    sqlStr: "insert into notices_collection_topic (sender_user_id, sender_avatar, sender_username, receiver_user_id, type, target_id, content, topic_id, isRead, createdAt) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    escapeArr: [sender_user_id, req.userInfo.avatar, req.userInfo.username, receiver_user_id, "topic_collection", topic_id, resultCollection[0].title, topic_id, 0, time]
+                })
+            }
+
+
         } else {
             await db.query({
                 sqlStr: "update topics_collection set deletedAt = ? where id = ? ",
@@ -405,7 +581,7 @@ module.exports.updateTopicById = async (req, res, next) => {
             data: ""
         })
     }
-
+    title = xss(title)
     content = xss(content)
 
     var time = new Date().getTime()
@@ -436,16 +612,29 @@ module.exports.updateTopicById = async (req, res, next) => {
 
 
 module.exports.getTopicByDefaultUserId = async (req, res, next) => {
+    var {
+        pageIndex
+    } = req.query
+    if (!pageIndex || pageIndex < 1) pageIndex = 1
+    var limit = 20;
+    var start = (pageIndex - 1) * limit
     try {
-        var result = await db.query({
-            sqlStr: "select * from topics where deletedAt is null and user_id = ?",
+        var resultTopics = await db.query({
+            sqlStr: `select * from topics where deletedAt is null and user_id = ? ORDER BY createdAt DESC limit ${start}, ${limit}`,
             escapeArr: [req.userInfo.id]
         })
-        if (result.length > 0) {
+        var resultCount = await db.query({
+            sqlStr: "select count(*) as count from topics where deletedAt is null and user_id = ?",
+            escapeArr: [req.userInfo.id]
+        })
+        if (resultTopics.length > 0) {
             return res.send({
                 code: 200,
                 msg: "ok",
-                data: result
+                data: {
+                    topics: resultTopics,
+                    pageCount: Math.ceil(resultCount[0].count / limit)
+                }
             })
         } else {
             return res.send({
@@ -471,16 +660,30 @@ module.exports.getTopicByUserId = async (req, res, next) => {
             data: ""
         })
     }
+    var {
+        pageIndex
+    } = req.query
+    if (!pageIndex || pageIndex < 1) pageIndex = 1
+    var limit = 20;
+    var start = (pageIndex - 1) * limit
+
     try {
-        var result = await db.query({
-            sqlStr: "select * from topics where deletedAt is null and user_id = ?",
+        var resultTopics = await db.query({
+            sqlStr: `select * from topics where deletedAt is null and user_id = ? ORDER BY createdAt DESC limit ${start}, ${limit}`,
             escapeArr: [user_id]
         })
-        if (result.length > 0) {
+        var resultCount = await db.query({
+            sqlStr: "select count(*) as count from topics where deletedAt is null and user_id = ?",
+            escapeArr: [user_id]
+        })
+        if (resultCount.length > 0) {
             return res.send({
                 code: 200,
                 msg: "ok",
-                data: result
+                data: {
+                    topics: resultTopics,
+                    pageCount: Math.ceil(resultCount[0].count / limit)
+                }
             })
         } else {
             return res.send({
@@ -501,7 +704,6 @@ module.exports.getCategoryWeekCount = async (req, res, next) => {
             sqlStr: "SELECT category, COUNT(*) as WeekCount  FROM topics WHERE deletedAt is NULL AND YEARWEEK(FROM_UNIXTIME(SUBSTRING(createdAt,1,10),'%Y-%m-%d %h:%m:%s')) = YEARWEEK(now()) GROUP BY category",
             escapeArr: []
         })
-        console.dir(result)
         if (result.length > 0) {
             return res.send({
                 code: 200,

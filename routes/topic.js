@@ -8,6 +8,8 @@ var topic = require('../controllers/topic')
 
 router.post('/', check.isLogin, topic.createTopic)
 
+router.post("/uploadImage", check.isLogin, topic.uploadImage)
+
 router.get('/list', topic.getTopicList)
 
 router.get('/getTopicByDefaultUserId', check.isLogin, topic.getTopicByDefaultUserId)
@@ -24,7 +26,7 @@ router.get('/:id', topic.getTopicById)
 router.get('/show/overview', topic.getTopicsOverview)
 
 
-router.post('/like/:topic_id', check.isLogin, topic.insertTopicLike)
+router.post('/like', check.isLogin, topic.insertTopicLike)
 
 
 router.post('/collection/:topic_id', check.isLogin, topic.insertTopicCollection)

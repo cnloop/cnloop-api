@@ -65,7 +65,6 @@ module.exports.verify = async (req, res, next) => {
             sqlStr: 'select * from users where github_email = ? limit 1',
             escapeArr: [userInfo.github_email]
         });
-        console.log('result ==>' + result)
         if (result.length) {
 
             var token = await methodSets.signUser(Object.assign({}, result[0]))

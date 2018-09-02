@@ -12,9 +12,15 @@ var path = require('path')
 
 var jwt = require("jsonwebtoken");
 
+var db = require("./models")
+
+
+
+
 var app = express()
 
 app.use(cors())
+
 
 // parse application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({
@@ -46,8 +52,16 @@ app.use(function (req, res, next) {
 
 mount(app, path.join(__dirname, 'routes'), true);
 
-app.use((err, req, res, next) => {
-    console.dir(err);
+app.use(async (err, req, res, next) => {
+    var time = new Date().getTime()
+    await db.query({
+        sqlStr: "insert into loggers (content, createdAt) values (?, ?)",
+        escapeArr: [JSON.stringify({
+            headers: req.headers,
+            errMsg: err.toString()
+        }), time]
+    })
+
     return res.send({
         code: 400,
         msg: '中间层转 err....',
