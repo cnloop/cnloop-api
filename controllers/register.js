@@ -193,9 +193,9 @@ module.exports.createUser = async (req, res, next) => {
 
         var token = await methodSets.signToken(regExp.trim(email), regExp.trim(password));
 
-        // var url_token = `https://cnloop.link/verify?register_token=${token}`
+        var url_token = `https://cnloop.link/verify?register_token=${token}`
 
-        var url_token = `http://127.0.0.1:8080/verify?register_token=${token}`
+        // var url_token = `http://127.0.0.1:8080/verify?register_token=${token}`
 
 
 
