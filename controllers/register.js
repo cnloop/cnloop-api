@@ -69,18 +69,18 @@ var methodSets = {
         return new Promise((res, rej) => {
             let transporter = nodemailer.createTransport({
                 // host: 'smtp.ethereal.email',
-                //service: 'qq', // 使用了内置传输发送邮件 查看支持列表：https://nodemailer.com/smtp/well-known/
-                host: 'smtp.163.com',
+                service: 'qq', // 使用了内置传输发送邮件 查看支持列表：https://nodemailer.com/smtp/well-known/
+                // host: 'smtp.163.com',
                 port: 465, // SMTP 端口
-                //secureConnection: true, // 使用了 SSL
-                secure: true,
+                secureConnection: true, // 使用了 SSL
+                // secure: true,
                 auth: {
-                    // user: 'cn-loop@qq.com',
-                    user: 'qiuxue0714@163.com',
+                    user: 'cn-loop@qq.com',
+                    // user: 'qiuxue0714@163.com',
                     // 这里密码不是qq密码，是你设置的smtp授权码
-                    // pass: 'ajmdxczajpqpbeeg',
+                    pass: 'ajmdxczajpqpbeeg',
                     // pass:'wuqiuxue119'
-                    pass: 'wuqiuxue119'
+                    // pass: 'wuqiuxue119'
                 }
             });
 
@@ -88,8 +88,8 @@ var methodSets = {
                 url
             })
             let mailOptions = {
-                // from: '"CNLOOP" <cn-loop@qq.com>', // sender address
-                from: '"CNLOOP" <qiuxue0714@163.com>',
+                from: '"CNLOOP" <cn-loop@qq.com>', // sender address
+                // from: '"CNLOOP" <qiuxue0714@163.com>',
                 to: email, // list of receivers
                 subject: 'complete the registration', // Subject line
                 // text:'123'
@@ -193,7 +193,11 @@ module.exports.createUser = async (req, res, next) => {
 
         var token = await methodSets.signToken(regExp.trim(email), regExp.trim(password));
 
-        var url_token = `http://127.0.0.1:8000/verify?register_token=${token}`
+        // var url_token = `https://cnloop.link/verify?register_token=${token}`
+
+        var url_token = `http://127.0.0.1:8080/verify?register_token=${token}`
+
+
 
         var info = await methodSets.sendEmail(regExp.trim(email), url_token);
 
@@ -211,6 +215,7 @@ module.exports.createUser = async (req, res, next) => {
             data: {}
         })
     } catch (err) {
+        console.log(err)
         return next(err);
     }
 }
@@ -227,7 +232,6 @@ module.exports.insertUser = async (req, res, next) => {
             escapeArr: [userinfo.email]
         })
 
-        console.dir(userArr)
         if (userArr.length) {
             return res.send({
                 code: 400,

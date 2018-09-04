@@ -66,7 +66,6 @@ module.exports.updateIsReadStatus = async (req, res, next) => {
             data: ""
         })
     } catch (err) {
-        console.log(err)
         return next(err)
     }
 }

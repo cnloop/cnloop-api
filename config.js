@@ -5,7 +5,9 @@ var config = {
     mysql: {
         host: "localhost",
         user: "root",
-        password: "123456",
+        password: "209E8znR",
+        // password: "123456",
+
         database: "cnloop"
     },
     github: {
@@ -16,7 +18,7 @@ var config = {
         access_key: 'L7X7eojDl72gbe8ub84LTck8U1p30zZWfr99LLRV',
         secret_key: 'xCUSO6s1gWCjKQkmDViscb_lTWiZM6oRacu9vyNN',
         bucket: "cnloop",
-        domain:"http://pbucd2xph.bkt.clouddn.com"
+        domain: "http://pbucd2xph.bkt.clouddn.com"
     }
 }
 

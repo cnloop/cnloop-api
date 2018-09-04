@@ -121,7 +121,6 @@ module.exports.uploadImage = async (req, res, next) => {
             data: `${config.qiniu.domain}/${fileName}`
         })
     } catch (err) {
-        console.dir(err)
         return next(err)
     }
 
@@ -610,6 +609,35 @@ module.exports.updateTopicById = async (req, res, next) => {
     }
 }
 
+
+module.exports.addTopicBrowsed = async (req, res, next) => {
+    var {
+        topic_id
+    } = req.body
+    try {
+        var result = await db.query({
+            sqlStr: "UPDATE topics SET browsed = (browsed+1) WHERE deletedAt is NULL AND id = ?",
+            escapeArr: [topic_id]
+        })
+        if (result.affectedRows > 0) {
+            return res.send({
+                code: 200,
+                msg: "ok",
+                data: ""
+            })
+        } else {
+            return res.send({
+                code: 400,
+                msg: " update browsed table result is no affectedRows"
+            })
+        }
+
+
+    } catch (err) {
+        console.log(err)
+        return next(err)
+    }
+}
 
 module.exports.getTopicByDefaultUserId = async (req, res, next) => {
     var {

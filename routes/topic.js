@@ -8,6 +8,9 @@ var topic = require('../controllers/topic')
 
 router.post('/', check.isLogin, topic.createTopic)
 
+router.patch("/addTopicBrowsed", topic.addTopicBrowsed)
+
+
 router.post("/uploadImage", check.isLogin, topic.uploadImage)
 
 router.get('/list', topic.getTopicList)
@@ -36,6 +39,7 @@ router.delete('/delete/:topic_id', check.isLogin, topic.deleteTopicById)
 router.get('/getTopicToUpdate/:topic_id', check.isLogin, topic.getTopicToUpdate)
 
 router.patch('/updateTopicById/:topic_id', check.isLogin, topic.updateTopicById)
+
 
 
 module.exports = router

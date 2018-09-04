@@ -32,7 +32,7 @@ var methodSets = {
 
 
 module.exports.verify = async (req, res, next) => {
-    if (!req.query) return res.redirect('http://127.0.0.1:8000')
+    if (!req.query) return res.redirect('https://cnloop.link')
     try {
         var getCode = await axios({
             method: "post",
@@ -46,14 +46,14 @@ module.exports.verify = async (req, res, next) => {
                 code: req.query.code
             }
         })
-        if (!getCode.data.access_token) return res.redirect('http://127.0.0.1:8000')
+        if (!getCode.data.access_token) return res.redirect('https://cnloop.link')
         var getUserInfo = await axios.get('https://api.github.com/user', {
             params: {
                 access_token: getCode.data.access_token
             }
         })
 
-        if (!getUserInfo.data) return res.redirect('http://127.0.0.1:8000/github');
+        if (!getUserInfo.data) return res.redirect('https://cnloop.link/github');
 
         var userInfo = {
             username: getUserInfo.data.login,
@@ -74,7 +74,7 @@ module.exports.verify = async (req, res, next) => {
                 token: token
             }
 
-            return res.redirect(`http://127.0.0.1:8000/github?data=${JSON.stringify(github_data)}`)
+            return res.redirect(`https://cnloop.link/github?data=${JSON.stringify(github_data)}`)
 
         } else {
 
@@ -100,11 +100,10 @@ module.exports.verify = async (req, res, next) => {
                 token: token
             }
 
-            return res.redirect(`http://127.0.0.1:8000/github?data=${JSON.stringify(github_data)}`)
+            return res.redirect(`https://cnloop.link/github?data=${JSON.stringify(github_data)}`)
         }
 
     } catch (err) {
-        console.log(err)
-        return res.redirect('http://127.0.0.1:8000/github')
+        return res.redirect('https://cnloop.link/github')
     }
 }

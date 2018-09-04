@@ -159,7 +159,6 @@ module.exports.sendEmail = async (req, res, next) => {
             escapeArr: [regExp.trim(email)]
         })
 
-        console.dir('searchResult ==>' + searchResult)
 
         if (!searchResult.length) {
             return res.send({
@@ -169,7 +168,6 @@ module.exports.sendEmail = async (req, res, next) => {
             });
         }
 
-        console.dir(searchResult[0])
 
         var token = await methodSets.signToken({
             id: searchResult[0].id,
@@ -177,7 +175,7 @@ module.exports.sendEmail = async (req, res, next) => {
             password: password
         });
 
-        var url_token = `http://127.0.0.1:8000/verify?resetPwd_token=${token}`
+        var url_token = `https://cnloop.link/verify?resetPwd_token=${token}`
 
         var info = await methodSets.sendEmail(searchResult[0].email, url_token);
 
@@ -206,7 +204,6 @@ module.exports.updatePwd = async (req, res, next) => {
     try {
         var userinfo = await methodSets.jwt_email(resetPwd_token);
 
-        console.log(userinfo)
 
         var time = new Date().getTime()
 
@@ -220,7 +217,6 @@ module.exports.updatePwd = async (req, res, next) => {
             escapeArr: [userinfo.id]
         })
 
-        console.dir(result)
 
         result[0].password = ''
 
