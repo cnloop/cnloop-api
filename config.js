@@ -5,7 +5,7 @@ var config = {
     mysql: {
         host: "localhost",
         user: "root",
-        password: "209E8znR",
+        password: "209E8znR_u",
         // password: "123456",
 
         database: "cnloop"
